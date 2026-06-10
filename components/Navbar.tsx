@@ -155,7 +155,7 @@ export default function Navbar() {
       window.removeEventListener("cartUpdated", handleInstantRefresh);
       window.removeEventListener("favUpdated", handleInstantRefresh);
     };
-  }, [user?.id]); 
+  }, [user?.id]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -225,7 +225,7 @@ export default function Navbar() {
 
         <div className="flex items-center justify-end gap-6">
           {!user && (
-            <Link href="/business-login" className="hidden lg:block">
+            <Link href="/gateway" className="hidden lg:block">
               <button className="text-[10px] font-black bg-[#4A1D24] hover:bg-purple-700 text-white px-5 py-3 rounded-full transition-all shadow-md flex items-center gap-2 uppercase tracking-widest cursor-pointer group hover:scale-[1.02]">
                 <Image
                   src="/randevu-icon.jpeg"

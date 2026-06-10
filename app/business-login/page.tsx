@@ -2,7 +2,6 @@
 import { useState } from "react";
 import {
   Building,
-  Upload,
   Sparkles,
   TrendingUp,
   Users,
@@ -12,6 +11,7 @@ import {
   Phone,
   ArrowRight,
   Percent,
+  CreditCard,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
@@ -19,8 +19,10 @@ import { useRouter } from "next/navigation";
 export default function BusinessHub() {
   const router = useRouter();
   const [view, setView] = useState<"login" | "register">("login");
+  const [registerStep, setRegisterStep] = useState<"form" | "plan">("form"); // Adım kontrolü
   const [duration, setDuration] = useState<"1year" | "2year">("2year");
   const [loading, setLoading] = useState(false);
+  const [registeredUserId, setRegisteredUserId] = useState<string | null>(null); // Kayıt olan salonun ID'si
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -62,6 +64,8 @@ export default function BusinessHub() {
       });
 
       if (error) throw error;
+      if (!data.session)
+        throw new Error("Oturum başlatılamadı, token alınamadı.");
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -69,18 +73,33 @@ export default function BusinessHub() {
         .eq("id", data.user?.id)
         .single();
 
-      if (profileError || !profile || profile.role !== "salon") {
-        await supabase.auth.signOut(); 
-        throw new Error(
-          "Bu panele yalnızca salon yöneticileri giriş yapabilir.",
-        );
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        throw new Error("Profil bilgileri doğrulanamadı.");
+      }
+
+      const tokenParams = `?access_token=${encodeURIComponent(data.session.access_token)}&refresh_token=${encodeURIComponent(data.session.refresh_token)}`;
+      let baseUrl = "http://localhost:5173/";
+
+      if (profile.role === "admin") {
+        baseUrl = "http://localhost:5173/admin/dashboard";
+      } else if (profile.role === "brand") {
+        baseUrl = "http://localhost:5173/brand/dashboard";
+      } else if (profile.role === "salon" || profile.role === "hairdresser") {
+        baseUrl = "http://localhost:5173/dashboard";
+      } else {
+        await supabase.auth.signOut();
+        throw new Error("Tanımsız rol yetkisi.");
       }
 
       setMessage({
         type: "success",
-        text: "Giriş başarılı! Yönetim paneline yönlendiriliyorsunuz...",
+        text: "Giriş Başarılı! Panelinize yönlendiriliyorsunuz...",
       });
-      setTimeout(() => router.push("/salon-dashboard"), 1500);
+
+      setTimeout(() => {
+        window.location.href = `${baseUrl}${tokenParams}`;
+      }, 1500);
     } catch (err: any) {
       setMessage({
         type: "error",
@@ -91,54 +110,47 @@ export default function BusinessHub() {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  // ADIM 1: İlk Kayıt Formu (Kullanıcı oluşturma, Profiles ve Salons tablolarına ilk kayıt)
+  const handleRegisterFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
     try {
+      // 1. Kullanıcıyı oluştur
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: registerEmail,
         password: registerPassword,
         options: {
-          data: {
-            full_name: fullName,
-            role: "salon", 
-          },
+          data: { full_name: fullName, role: "salon" },
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Kullanıcı oluşturulamadı.");
 
+      // 2. Profiles tablosuna sadece ID ve ROLE bas
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ role: "salon", phone: phone })
-        .eq("id", authData.user.id);
+        .insert([{ id: authData.user.id, role: "salon" }]);
 
       if (profileError) throw profileError;
 
-      const workingHoursObj = {
-        description: `${salonName} profesyonel hizmet kadrosu.`,
-        hours: "09:00-22:00",
-        phone: phone,
-        balance: 0,
-      };
-
+      // 3. Salons tablosuna ilk verileri ekle
       const { error: salonError } = await supabase.from("salons").insert({
-        salon_id: authData.user.id, 
+        salon_id: authData.user.id,
         salon_name: salonName,
-        working_hours: workingHoursObj,
+        opening_time: "09:00",
+        closing_time: "22:00",
         cover_images: [],
+        // Eğer tablonuzda phone alanı varsa ekleyebilirsiniz: phone: phone
       });
 
       if (salonError) throw salonError;
 
-      setMessage({
-        type: "success",
-        text: "Salon kaydınız başarıyla tamamlandı! Giriş yapabilirsiniz.",
-      });
-      setView("login");
+      // Başarılıysa kullanıcının ID'sini hafızada tut ve 2. Adıma (Fiyatlandırma) geçir
+      setRegisteredUserId(authData.user.id);
+      setRegisterStep("plan");
     } catch (err: any) {
       setMessage({
         type: "error",
@@ -149,8 +161,46 @@ export default function BusinessHub() {
     }
   };
 
+  // ADIM 2: Fiyat / Ödeme Seçimi (Salons tablosuna paket güncellemesi yapma)
+  const handlePlanSelectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!registeredUserId) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      // Seçilen paket süresini salons tablosundaki 'pay' kolonuna update ediyoruz
+      const { error: updateError } = await supabase
+        .from("salons")
+        .update({
+          pay: duration, // Tablondaki sütun adına göre 'pay' veya 'subscription_plan' yazabilirsin
+        })
+        .eq("salon_id", registeredUserId);
+
+      if (updateError) throw updateError;
+
+      setMessage({
+        type: "success",
+        text: "Lisans ödemeniz alındı ve kurulum tamamlandı! Şimdi giriş yapabilirsiniz.",
+      });
+
+      // Akışı sıfırla ve Giriş ekranına yönlendir
+      setRegisterStep("form");
+      setView("login");
+    } catch (err: any) {
+      setMessage({
+        type: "error",
+        text: err.message || "Lisans kaydı güncellenirken hata oluştu.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans flex flex-col lg:flex-row overflow-hidden">
+      {/* Sol Panel */}
       <div className="w-full lg:w-1/2 p-8 md:p-16 bg-white flex flex-col justify-between border-r border-slate-200 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-purple-200/40 rounded-full blur-3xl pointer-events-none" />
 
@@ -166,16 +216,15 @@ export default function BusinessHub() {
 
           <div className="space-y-4">
             <div className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-100 px-3 py-1 rounded-full text-[10px] font-bold text-purple-600 tracking-wider uppercase">
-              <Sparkles className="w-3 h-3" /> Akıllı Salon Yönetim Ağı
+              <Sparkles className="w-3 h-3" /> Akıllı İşletme Yönetim Ağı
             </div>
             <h1 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-[1.1] text-slate-900">
-              Koltuk doluluğunuzu{" "}
+              İşletmenizi tek merkezden{" "}
               <span className="text-purple-600">optimize edin.</span>
             </h1>
             <p className="text-xs md:text-sm text-slate-500 font-medium leading-relaxed max-w-md">
               Müşterilerinizin sıraya gireceği pürüzsüz bir randevu deneyimi,
-              akıllı envanter takibi ve dijital ciro asistanı. Karmaşık
-              sistemleri unutun; her şey tek bir akıcı panelde.
+              akıllı envanter takibi ve dijital ciro asistanı.
             </p>
           </div>
 
@@ -202,30 +251,34 @@ export default function BusinessHub() {
         </div>
       </div>
 
+      {/* Sağ Panel (Formlar) */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 md:py-20 bg-slate-50">
         <div className="w-full max-w-md space-y-8">
-          <div className="grid grid-cols-2 p-1 bg-white border border-slate-200 rounded-xl max-w-xs mx-auto lg:mx-0 shadow-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setView("login");
-                setMessage(null);
-              }}
-              className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "login" ? "bg-purple-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
-            >
-              Giriş Yap
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setView("register");
-                setMessage(null);
-              }}
-              className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "register" ? "bg-purple-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
-            >
-              Kayıt Ol
-            </button>
-          </div>
+          {/* Sadece normal form adımındayken Giriş/Kayıt tabları gözüksün */}
+          {registerStep === "form" && (
+            <div className="grid grid-cols-2 p-1 bg-white border border-slate-200 rounded-xl max-w-xs mx-auto lg:mx-0 shadow-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setView("login");
+                  setMessage(null);
+                }}
+                className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "login" ? "bg-purple-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
+              >
+                Giriş Yap
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setView("register");
+                  setMessage(null);
+                }}
+                className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "register" ? "bg-purple-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
+              >
+                Kayıt Ol
+              </button>
+            </div>
+          )}
 
           {message && (
             <div
@@ -236,20 +289,21 @@ export default function BusinessHub() {
           )}
 
           {view === "login" ? (
+            /* --- GİRİŞ EKRANI --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                  Yönetici Girişi
+                  Sistem Girişi
                 </h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  Hesabınıza erişerek ajandanızı canlı takip edin.
+                  Panelinize canlı bağlanın.
                 </p>
               </div>
 
               <form className="space-y-4" onSubmit={handleLogin}>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                    E-Posta Adresi
+                    E-Posta
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -258,18 +312,16 @@ export default function BusinessHub() {
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="isim@salon.com"
-                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500 transition-colors shadow-xs"
+                      placeholder="isim@isletme.com"
+                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold focus:outline-none focus:border-purple-500"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                      Şifre
-                    </label>
-                  </div>
+                  <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
+                    Şifre
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
@@ -277,8 +329,7 @@ export default function BusinessHub() {
                       required
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500 transition-colors shadow-xs"
+                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold focus:outline-none focus:border-purple-500"
                     />
                   </div>
                 </div>
@@ -286,80 +337,26 @@ export default function BusinessHub() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-black text-xs py-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
                 >
-                  {loading ? "OTURUM AÇILIYOR..." : "PANELDEN OTURUM AÇ"}{" "}
+                  {loading ? "OTURUM AÇILIYOR..." : "SİSTEMDEN OTURUM AÇ"}{" "}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
             </div>
-          ) : (
+          ) : registerStep === "form" ? (
+            /* --- KAYIT ADIM 1: FORM BİLGİLERİ --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
                   İşletmenizi Kaydedin
                 </h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  Tek bir lisansla tüm premium özelliklere sınırsız erişin.
+                  Salon profilinizi oluşturmak için bilgileri girin.
                 </p>
               </div>
 
-              <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                  <span className="text-[10px] font-black tracking-wider text-slate-500 uppercase flex items-center gap-1">
-                    <Percent className="w-3 h-3 text-purple-600" /> LİSANS
-                    SÜRESİ SEÇİNİZ
-                  </span>
-                  <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
-                    {pricing[duration].badge}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDuration("1year")}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${duration === "1year" ? "bg-purple-50/50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                  >
-                    <span className="text-[11px] font-black text-slate-700">
-                      1 YILLIK
-                    </span>
-                    <span className="text-xs font-black text-purple-600 mt-1">
-                      {pricing["1year"].monthly}/ay
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setDuration("2year")}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${duration === "2year" ? "bg-purple-50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                  >
-                    <div className="absolute top-0 right-0 bg-purple-600 text-white font-black text-[8px] px-1.5 py-0.5 uppercase rounded-bl-lg tracking-tight">
-                      Popüler
-                    </div>
-                    <span className="text-[11px] font-black text-slate-700">
-                      2 YILLIK
-                    </span>
-                    <span className="text-xs font-black text-purple-600 mt-1">
-                      {pricing["2year"].monthly}/ay
-                    </span>
-                  </button>
-                </div>
-
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
-                  <div className="text-[11px] text-slate-600 font-medium">
-                    Toplam Tutar:{" "}
-                    <strong className="text-purple-600 font-bold">
-                      {pricing[duration].total}
-                    </strong>{" "}
-                    {duration === "2year"
-                      ? "(24 Ay Sabit Fiyat)"
-                      : "(12 Ay Standart)"}
-                  </div>
-                </div>
-              </div>
-
-              <form className="space-y-3.5" onSubmit={handleRegister}>
+              <form className="space-y-3.5" onSubmit={handleRegisterFormSubmit}>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
@@ -450,10 +447,87 @@ export default function BusinessHub() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-black text-xs py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer mt-2"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-xs py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 tracking-widest uppercase mt-2 cursor-pointer"
                 >
-                  {loading ? "İŞLEMEM ALINIYOR..." : "LİSANSI BAŞLAT VE KUR"}{" "}
+                  {loading ? "İŞLEMEM ALINIYOR..." : "DEVAM ET VE LİSANS SEÇ"}{" "}
                   <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+          ) : (
+            /* --- KAYIT ADIM 2: FİYAT VE LİSANS SEÇİMİ (ÖDEME) --- */
+            <div className="space-y-6">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">
+                  Lisans Paketinizi Seçin
+                </h2>
+                <p className="text-xs text-slate-500 font-medium">
+                  Kaydınızı tamamlamak için kurumsal lisans sürenizi onaylayın.
+                </p>
+              </div>
+
+              <form onSubmit={handlePlanSelectionSubmit} className="space-y-4">
+                <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <span className="text-[10px] font-black tracking-wider text-slate-500 uppercase flex items-center gap-1">
+                      <Percent className="w-3 h-3 text-purple-600" /> SÜRE
+                      SEÇENEKLERİ
+                    </span>
+                    <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+                      {pricing[duration].badge}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDuration("1year")}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${duration === "1year" ? "bg-purple-50/50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
+                    >
+                      <span className="text-[11px] font-black text-slate-700">
+                        1 YILLIK
+                      </span>
+                      <span className="text-xs font-black text-purple-600 mt-1">
+                        {pricing["1year"].monthly}/ay
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDuration("2year")}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${duration === "2year" ? "bg-purple-50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
+                    >
+                      <div className="absolute top-0 right-0 bg-purple-600 text-white font-black text-[8px] px-1.5 py-0.5 uppercase rounded-bl-lg tracking-tight">
+                        Popüler
+                      </div>
+                      <span className="text-[11px] font-black text-slate-700">
+                        2 YILLIK
+                      </span>
+                      <span className="text-xs font-black text-purple-600 mt-1">
+                        {pricing["2year"].monthly}/ay
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
+                    <div className="text-[11px] text-slate-600 font-medium">
+                      Toplam Tutar:{" "}
+                      <strong className="text-purple-600 font-bold">
+                        {pricing[duration].total}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
+                >
+                  <CreditCard className="w-4 h-4" />{" "}
+                  {loading
+                    ? "LİSANS ONAYLANIYOR..."
+                    : "ÖDEME YAP VE LİSANSI TAMAMLA"}
                 </button>
               </form>
             </div>
