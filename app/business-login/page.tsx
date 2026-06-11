@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Building,
   Sparkles,
@@ -16,13 +16,25 @@ import {
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 
+interface PackagePlan {
+  id: string;
+  name: string;
+  months: number;
+  monthly_price: number;
+  discount_badge: string;
+  is_popular: boolean;
+}
+
 export default function BusinessHub() {
   const router = useRouter();
   const [view, setView] = useState<"login" | "register">("login");
-  const [registerStep, setRegisterStep] = useState<"form" | "plan">("form"); // Adım kontrolü
-  const [duration, setDuration] = useState<"1year" | "2year">("2year");
+  const [registerStep, setRegisterStep] = useState<"form" | "plan">("form");
   const [loading, setLoading] = useState(false);
-  const [registeredUserId, setRegisteredUserId] = useState<string | null>(null); // Kayıt olan salonun ID'si
+  const [registeredUserId, setRegisteredUserId] = useState<string | null>(null);
+
+  const [plans, setPlans] = useState<PackagePlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -37,20 +49,27 @@ export default function BusinessHub() {
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
 
-  const pricing = {
-    "1year": {
-      label: "1 Yıllık Standart Lisans",
-      total: "₺7.188",
-      monthly: "₺599",
-      badge: "Standart Erişim",
-    },
-    "2year": {
-      label: "2 Yıllık Avantajlı Lisans",
-      total: "₺11.976",
-      monthly: "₺499",
-      badge: "%17 Ek Tasarruf + Premium Rozet",
-    },
-  };
+  useEffect(() => {
+    async function fetchPlans() {
+      try {
+        const { data, error } = await supabase
+          .from("package_plans")
+          .select("id, name, months, monthly_price, discount_badge, is_popular")
+          .order("months", { ascending: true });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setPlans(data);
+          const popularPlan = data.find((p) => p.is_popular) || data[0];
+          setSelectedPlanId(popularPlan.id);
+        }
+      } catch (err) {
+        console.error("Paket planları çekilirken hata oluştu:", err);
+      }
+    }
+    fetchPlans();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,14 +129,12 @@ export default function BusinessHub() {
     }
   };
 
-  // ADIM 1: İlk Kayıt Formu (Kullanıcı oluşturma, Profiles ve Salons tablolarına ilk kayıt)
   const handleRegisterFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
     try {
-      // 1. Kullanıcıyı oluştur
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: registerEmail,
         password: registerPassword,
@@ -129,26 +146,22 @@ export default function BusinessHub() {
       if (authError) throw authError;
       if (!authData.user) throw new Error("Kullanıcı oluşturulamadı.");
 
-      // 2. Profiles tablosuna sadece ID ve ROLE bas
       const { error: profileError } = await supabase
         .from("profiles")
         .insert([{ id: authData.user.id, role: "salon" }]);
 
       if (profileError) throw profileError;
 
-      // 3. Salons tablosuna ilk verileri ekle
       const { error: salonError } = await supabase.from("salons").insert({
         salon_id: authData.user.id,
         salon_name: salonName,
         opening_time: "09:00",
         closing_time: "22:00",
         cover_images: [],
-        // Eğer tablonuzda phone alanı varsa ekleyebilirsiniz: phone: phone
       });
 
       if (salonError) throw salonError;
 
-      // Başarılıysa kullanıcının ID'sini hafızada tut ve 2. Adıma (Fiyatlandırma) geçir
       setRegisteredUserId(authData.user.id);
       setRegisterStep("plan");
     } catch (err: any) {
@@ -161,20 +174,18 @@ export default function BusinessHub() {
     }
   };
 
-  // ADIM 2: Fiyat / Ödeme Seçimi (Salons tablosuna paket güncellemesi yapma)
   const handlePlanSelectionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!registeredUserId) return;
+    if (!registeredUserId || !selectedPlanId) return;
 
     setLoading(true);
     setMessage(null);
 
     try {
-      // Seçilen paket süresini salons tablosundaki 'pay' kolonuna update ediyoruz
       const { error: updateError } = await supabase
         .from("salons")
         .update({
-          pay: duration, // Tablondaki sütun adına göre 'pay' veya 'subscription_plan' yazabilirsin
+          package_plan_id: selectedPlanId,
         })
         .eq("salon_id", registeredUserId);
 
@@ -185,7 +196,6 @@ export default function BusinessHub() {
         text: "Lisans ödemeniz alındı ve kurulum tamamlandı! Şimdi giriş yapabilirsiniz.",
       });
 
-      // Akışı sıfırla ve Giriş ekranına yönlendir
       setRegisterStep("form");
       setView("login");
     } catch (err: any) {
@@ -198,10 +208,13 @@ export default function BusinessHub() {
     }
   };
 
+  const activePlanDetails = plans.find((p) => p.id === selectedPlanId);
+
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans flex flex-col lg:flex-row overflow-hidden">
       {/* Sol Panel */}
       <div className="w-full lg:w-1/2 p-8 md:p-16 bg-white flex flex-col justify-between border-r border-slate-200 relative overflow-hidden">
+        {/* Geri gelen Mor Blur efekti */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-purple-200/40 rounded-full blur-3xl pointer-events-none" />
 
         <div className="space-y-12 max-w-xl relative z-10 my-auto">
@@ -254,7 +267,6 @@ export default function BusinessHub() {
       {/* Sağ Panel (Formlar) */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 md:py-20 bg-slate-50">
         <div className="w-full max-w-md space-y-8">
-          {/* Sadece normal form adımındayken Giriş/Kayıt tabları gözüksün */}
           {registerStep === "form" && (
             <div className="grid grid-cols-2 p-1 bg-white border border-slate-200 rounded-xl max-w-xs mx-auto lg:mx-0 shadow-xs">
               <button
@@ -369,7 +381,7 @@ export default function BusinessHub() {
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Sudenaz Yuvcal"
+                        placeholder="Ad Soyad"
                         className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
                       />
                     </div>
@@ -449,13 +461,13 @@ export default function BusinessHub() {
                   disabled={loading}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-xs py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 tracking-widest uppercase mt-2 cursor-pointer"
                 >
-                  {loading ? "İŞLEMEM ALINIYOR..." : "DEVAM ET VE LİSANS SEÇ"}{" "}
+                  {loading ? "İŞLEM ALINIYOR..." : "DEVAM ET VE LİSANS SEÇ"}{" "}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
             </div>
           ) : (
-            /* --- KAYIT ADIM 2: FİYAT VE LİSANS SEÇİMİ (ÖDEME) --- */
+            /* --- KAYIT ADIM 2: VERİTABANINDAN 3 PAKET LİSTELEME --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -473,55 +485,60 @@ export default function BusinessHub() {
                       <Percent className="w-3 h-3 text-purple-600" /> SÜRE
                       SEÇENEKLERİ
                     </span>
-                    <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
-                      {pricing[duration].badge}
-                    </span>
+                    {activePlanDetails?.discount_badge && (
+                      <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+                        {activePlanDetails.discount_badge}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDuration("1year")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${duration === "1year" ? "bg-purple-50/50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                    >
-                      <span className="text-[11px] font-black text-slate-700">
-                        1 YILLIK
-                      </span>
-                      <span className="text-xs font-black text-purple-600 mt-1">
-                        {pricing["1year"].monthly}/ay
-                      </span>
-                    </button>
+                  {/* 3 paket gelirse 3'lü kolon düzeni */}
+                  <div
+                    className={`grid gap-2 ${plans.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
+                  >
+                    {plans.map((plan) => (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => setSelectedPlanId(plan.id)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${selectedPlanId === plan.id ? "bg-purple-50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
+                      >
+                        {plan.is_popular && (
+                          <div className="absolute top-0 right-0 bg-purple-600 text-white font-black text-[7px] px-1.5 py-0.5 uppercase rounded-bl-lg tracking-tight">
+                            Popüler
+                          </div>
+                        )}
+                        <span className="text-[10px] font-black text-slate-700 uppercase wrap-break-words pr-2">
+                          {plan.name}
+                        </span>
+                        <span className="text-xs font-black text-purple-600 mt-2">
+                          ₺{plan.monthly_price}/ay
+                        </span>
+                      </button>
+                    ))}
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setDuration("2year")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${duration === "2year" ? "bg-purple-50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                    >
-                      <div className="absolute top-0 right-0 bg-purple-600 text-white font-black text-[8px] px-1.5 py-0.5 uppercase rounded-bl-lg tracking-tight">
-                        Popüler
+                  {/* Dinamik Hesaplanan Tutar */}
+                  {activePlanDetails && (
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
+                      <div className="text-[11px] text-slate-600 font-medium">
+                        Toplam Tutar:{" "}
+                        <strong className="text-purple-600 font-bold">
+                          ₺
+                          {(
+                            activePlanDetails.monthly_price *
+                            activePlanDetails.months
+                          ).toLocaleString("tr-TR")}
+                        </strong>
                       </div>
-                      <span className="text-[11px] font-black text-slate-700">
-                        2 YILLIK
-                      </span>
-                      <span className="text-xs font-black text-purple-600 mt-1">
-                        {pricing["2year"].monthly}/ay
-                      </span>
-                    </button>
-                  </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
-                    <div className="text-[11px] text-slate-600 font-medium">
-                      Toplam Tutar:{" "}
-                      <strong className="text-purple-600 font-bold">
-                        {pricing[duration].total}
-                      </strong>
                     </div>
-                  </div>
+                  )}
                 </div>
 
+                {/* Buton hala yeşil kalıyor, çünkü ödeme/onay butonu */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !selectedPlanId}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
                 >
                   <CreditCard className="w-4 h-4" />{" "}

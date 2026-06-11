@@ -36,9 +36,7 @@ export default function B2BGateway() {
         </div>
       </div>
 
-      {/* Ana Kart Alanı */}
       <div className="w-full max-w-3xl bg-white border border-slate-200/80 rounded-[2.5rem] p-8 md:p-12 shadow-xl relative z-10 space-y-8 text-center">
-        {/* Başlık ve Karşılama */}
         <div className="space-y-3">
           <div className="inline-flex bg-purple-50 border border-purple-100 px-3 py-1 rounded-full text-[10px] font-black tracking-widest text-purple-700 uppercase mx-auto">
             <Sparkles className="w-3 h-3 inline-block mr-1 align-middle -mt-0.5" />{" "}
@@ -53,9 +51,7 @@ export default function B2BGateway() {
           </p>
         </div>
 
-        {/* Seçim Seçenekleri */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
-          {/* KOZMETİK MARKASI SEÇENEĞİ */}
           <button
             onClick={() => router.push("/brand")}
             className="flex flex-col items-center justify-between p-8 bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300 rounded-4xl transition-all cursor-pointer group text-center shadow-xs hover:shadow-md hover:-translate-y-1"
