@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import {
   Building,
   Sparkles,
+  TrendingUp,
   Users,
   Mail,
   Lock,
@@ -11,30 +12,29 @@ import {
   ArrowRight,
   Percent,
   CreditCard,
-  Globe,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 
 interface PackagePlan {
   id: string;
+  name: string;
   months: number;
   monthly_price: number;
   discount_badge: string;
   is_popular: boolean;
-  name: string;
 }
 
 export default function BusinessHub() {
   const router = useRouter();
   const [view, setView] = useState<"login" | "register">("login");
   const [registerStep, setRegisterStep] = useState<"form" | "plan">("form");
-  const [duration, setDuration] = useState<"1year" | "2year">("2year");
   const [loading, setLoading] = useState(false);
-  const [registeredBrandId, setRegisteredBrandId] = useState<string | null>(
-    null,
-  );
-  const [dbPlans, setDbPlans] = useState<{ [key: string]: PackagePlan }>({});
+  const [registeredUserId, setRegisteredUserId] = useState<string | null>(null);
+
+  const [plans, setPlans] = useState<PackagePlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -42,50 +42,30 @@ export default function BusinessHub() {
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
   const [fullName, setFullName] = useState("");
-  const [brandName, setBrandName] = useState("");
-  const [sector, setSector] = useState("");
-  const [website, setWebsite] = useState("");
+  const [salonName, setSalonName] = useState("");
   const [phone, setPhone] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
-
-  const pricing = {
-    "1year": {
-      label: "1 Yıllık Standart Marka Lisansı",
-      total: "₺14.388",
-      monthly: "₺1.199",
-      badge: "Standart Erişim",
-    },
-    "2year": {
-      label: "2 Yıllık Avantajlı Marka Lisansı",
-      total: "₺23.976",
-      monthly: "₺999",
-      badge: "%17 Ek Tasarruf + Premium Partner",
-    },
-  };
 
   useEffect(() => {
     async function fetchPlans() {
       try {
         const { data, error } = await supabase
           .from("package_plans")
-          .select(
-            "id, months, monthly_price, discount_badge, is_popular, name",
-          );
+          .select("id, name, months, monthly_price, discount_badge, is_popular")
+          .order("months", { ascending: true });
 
         if (error) throw error;
 
-        if (data) {
-          const plansMap: { [key: string]: PackagePlan } = {};
-          data.forEach((plan) => {
-            if (plan.months === 12) plansMap["1year"] = plan;
-            if (plan.months === 24) plansMap["2year"] = plan;
-          });
-          setDbPlans(plansMap);
+        if (data && data.length > 0) {
+          setPlans(data);
+          const popularPlan = data.find((p) => p.is_popular) || data[0];
+          setSelectedPlanId(popularPlan.id);
         }
       } catch (err) {
-        console.error("Planlar yüklenirken hata oluştu:", err);
+        console.error("Paket planları çekilirken hata oluştu:", err);
       }
     }
     fetchPlans();
@@ -103,7 +83,8 @@ export default function BusinessHub() {
       });
 
       if (error) throw error;
-      if (!data.session) throw new Error("Oturum başlatılamadı.");
+      if (!data.session)
+        throw new Error("Oturum başlatılamadı, token alınamadı.");
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -113,23 +94,26 @@ export default function BusinessHub() {
 
       if (profileError || !profile) {
         await supabase.auth.signOut();
-        throw new Error("Profil yetkileri doğrulanamadı.");
+        throw new Error("Profil bilgileri doğrulanamadı.");
       }
 
       const tokenParams = `?access_token=${encodeURIComponent(data.session.access_token)}&refresh_token=${encodeURIComponent(data.session.refresh_token)}`;
-
       let baseUrl = "http://localhost:5173/";
+
       if (profile.role === "admin") {
         baseUrl = "http://localhost:5173/admin/dashboard";
       } else if (profile.role === "brand") {
         baseUrl = "http://localhost:5173/brand/dashboard";
-      } else {
+      } else if (profile.role === "salon" || profile.role === "hairdresser") {
         baseUrl = "http://localhost:5173/dashboard";
+      } else {
+        await supabase.auth.signOut();
+        throw new Error("Tanımsız rol yetkisi.");
       }
 
       setMessage({
         type: "success",
-        text: "Giriş Başarılı! Marka Paneline yönlendiriliyorsunuz...",
+        text: "Giriş Başarılı! Panelinize yönlendiriliyorsunuz...",
       });
 
       setTimeout(() => {
@@ -155,41 +139,30 @@ export default function BusinessHub() {
         email: registerEmail,
         password: registerPassword,
         options: {
-          data: {
-            full_name: fullName,
-            display_name: fullName,
-            name: fullName,
-            role: "brand",
-          },
+          data: { full_name: fullName, role: "salon" },
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Kullanıcı oluşturulamadı.");
 
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: authData.user.id,
-          role: "brand",
-          full_name: fullName,
-        },
-      ]);
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert([{ id: authData.user.id, role: "salon" }]);
 
       if (profileError) throw profileError;
 
-      const { error: brandError } = await supabase.from("brands").insert([
-        {
-          id: authData.user.id,
-          brand_name: brandName,
-          authorized_name: fullName,
-          phone: phone,
-          email: registerEmail,
-        },
-      ]);
+      const { error: salonError } = await supabase.from("salons").insert({
+        salon_id: authData.user.id,
+        salon_name: salonName,
+        opening_time: "09:00",
+        closing_time: "22:00",
+        cover_images: [],
+      });
 
-      if (brandError) throw brandError;
+      if (salonError) throw salonError;
 
-      setRegisteredBrandId(authData.user.id);
+      setRegisteredUserId(authData.user.id);
       setRegisterStep("plan");
     } catch (err: any) {
       setMessage({
@@ -203,34 +176,24 @@ export default function BusinessHub() {
 
   const handlePlanSelectionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!registeredBrandId) return;
-
-    const selectedPlanId = dbPlans[duration]?.id;
-
-    if (!selectedPlanId) {
-      setMessage({
-        type: "error",
-        text: "Seçilen pakete ait sistem ID'si bulunamadı. Lütfen sayfayı yenileyip tekrar deneyin.",
-      });
-      return;
-    }
+    if (!registeredUserId || !selectedPlanId) return;
 
     setLoading(true);
     setMessage(null);
 
     try {
-      const { error: planError } = await supabase
-        .from("brands")
+      const { error: updateError } = await supabase
+        .from("salons")
         .update({
-          subscription_plan: duration,
+          package_plan_id: selectedPlanId,
         })
-        .eq("id", registeredBrandId);
+        .eq("salon_id", registeredUserId);
 
-      if (planError) throw planError;
+      if (updateError) throw updateError;
 
       setMessage({
         type: "success",
-        text: "Marka lisans kaydınız ve ödemeniz onaylandı! Giriş yapabilirsiniz.",
+        text: "Lisans ödemeniz alındı ve kurulum tamamlandı! Şimdi giriş yapabilirsiniz.",
       });
 
       setRegisterStep("form");
@@ -238,40 +201,62 @@ export default function BusinessHub() {
     } catch (err: any) {
       setMessage({
         type: "error",
-        text: err.message || "Paket tanımlanırken bir hata oluştu.",
+        text: err.message || "Lisans kaydı güncellenirken hata oluştu.",
       });
     } finally {
       setLoading(false);
     }
   };
 
+  const activePlanDetails = plans.find((p) => p.id === selectedPlanId);
+
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans flex flex-col lg:flex-row overflow-hidden">
       <div className="w-full lg:w-1/2 p-8 md:p-16 bg-white flex flex-col justify-between border-r border-slate-200 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-0 w-96 h-96 bg-purple-200/40 rounded-full blur-3xl pointer-events-none" />
+
         <div className="space-y-12 max-w-xl relative z-10 my-auto">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-black text-sm shadow-md">
-              M
+            <div className="w-9 h-9 bg-purple-600 text-white rounded-xl flex items-center justify-center font-black text-sm shadow-md">
+              K
             </div>
             <span className="font-black text-xs tracking-[0.25em] text-slate-700 uppercase">
-              KRTS BRAND PARTNER
+              KRTS SALON PARTNER
             </span>
           </div>
+
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full text-[10px] font-bold text-emerald-600 tracking-wider uppercase">
-              <Sparkles className="w-3 h-3" /> Marka & Tedarik Yönetim Ağı
+            <div className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-100 px-3 py-1 rounded-full text-[10px] font-bold text-purple-600 tracking-wider uppercase">
+              <Sparkles className="w-3 h-3" /> Akıllı İşletme Yönetim Ağı
             </div>
             <h1 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-[1.1] text-slate-900">
-              Markanızı salonlarla{" "}
-              <span className="text-emerald-600">buluşturun.</span>
+              İşletmenizi tek merkezden{" "}
+              <span className="text-purple-600">optimize edin.</span>
             </h1>
             <p className="text-xs md:text-sm text-slate-500 font-medium leading-relaxed max-w-md">
-              Güzellik salonlarına doğrudan ulaşın, ürün ve envanter ağınızı
-              yönetin, sipariş ve pazar payınızı akıllı analizlerle büyütün.
+              Müşterilerinizin sıraya gireceği pürüzsüz bir randevu deneyimi,
+              akıllı envanter takibi ve dijital ciro asistanı.
             </p>
           </div>
+
+          <div className="grid grid-cols-2 gap-4 max-w-sm pt-4">
+            <div className="p-4 bg-purple-50/50 border border-purple-100/60 rounded-2xl space-y-1">
+              <TrendingUp className="w-4 h-4 text-purple-600" />
+              <div className="text-lg font-black text-slate-900">+42%</div>
+              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                Net Ciro Artışı
+              </div>
+            </div>
+            <div className="p-4 bg-purple-50/50 border border-purple-100/60 rounded-2xl space-y-1">
+              <Users className="w-4 h-4 text-purple-600" />
+              <div className="text-lg font-black text-slate-900">0 Dakika</div>
+              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                Bekleme & Çakışma
+              </div>
+            </div>
+          </div>
         </div>
+
         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pt-8 relative z-10">
           KRTS SECURE CLOUD NETWORK 2026 Enterprise
         </div>
@@ -287,7 +272,7 @@ export default function BusinessHub() {
                   setView("login");
                   setMessage(null);
                 }}
-                className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "login" ? "bg-emerald-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
+                className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "login" ? "bg-purple-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
               >
                 Giriş Yap
               </button>
@@ -297,9 +282,9 @@ export default function BusinessHub() {
                   setView("register");
                   setMessage(null);
                 }}
-                className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "register" ? "bg-emerald-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
+                className={`py-2 text-xs font-black tracking-wider uppercase rounded-lg transition-all cursor-pointer ${view === "register" ? "bg-purple-600 text-white shadow-md" : "text-slate-400 hover:text-slate-800"}`}
               >
-                Marka Kaydı
+                Kayıt Ol
               </button>
             </div>
           )}
@@ -316,10 +301,10 @@ export default function BusinessHub() {
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                  Marka Girişi
+                  Sistem Girişi
                 </h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  Marka yönetim merkezinize bağlanın.
+                  Panelinize canlı bağlanın.
                 </p>
               </div>
 
@@ -335,8 +320,8 @@ export default function BusinessHub() {
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="brand@sirket.com"
-                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                      placeholder="isim@isletme.com"
+                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold focus:outline-none focus:border-purple-500"
                     />
                   </div>
                 </div>
@@ -352,7 +337,7 @@ export default function BusinessHub() {
                       required
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-xs font-semibold focus:outline-none focus:border-purple-500"
                     />
                   </div>
                 </div>
@@ -360,9 +345,9 @@ export default function BusinessHub() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
                 >
-                  {loading ? "OTURUM AÇILIYOR..." : "MARKA PANELİNE GİR"}{" "}
+                  {loading ? "OTURUM AÇILIYOR..." : "SİSTEMDEN OTURUM AÇ"}{" "}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
@@ -371,10 +356,10 @@ export default function BusinessHub() {
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                  Markanızı Kaydedin
+                  İşletmenizi Kaydedin
                 </h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  B2B yönetim ağında yerinizi almak için bilgileri doldurun.
+                  Salon profilinizi oluşturmak için bilgileri girin.
                 </p>
               </div>
 
@@ -382,42 +367,7 @@ export default function BusinessHub() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                      Marka Adı
-                    </label>
-                    <div className="relative">
-                      <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                      <input
-                        type="text"
-                        required
-                        value={brandName}
-                        onChange={(e) => setBrandName(e.target.value)}
-                        placeholder="Natura Kozmetik"
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                      Sektör
-                    </label>
-                    <div className="relative">
-                      <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                      <input
-                        type="text"
-                        required
-                        value={sector}
-                        onChange={(e) => setSector(e.target.value)}
-                        placeholder="Kozmetik / Saç Bakım"
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                      Yetkili Ad Soyad
+                      Yönetici Ad Soyad
                     </label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -426,23 +376,24 @@ export default function BusinessHub() {
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Ahmet Yılmaz"
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                        placeholder="Ad Soyad"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
                       />
                     </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                      Web Sitesi
+                      Salon Kurumsal Adı
                     </label>
                     <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                       <input
                         type="text"
-                        value={website}
-                        onChange={(e) => setWebsite(e.target.value)}
-                        placeholder="www.naturakozmetik.com"
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                        required
+                        value={salonName}
+                        onChange={(e) => setSalonName(e.target.value)}
+                        placeholder="FİEM Kuaför"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
                       />
                     </div>
                   </div>
@@ -451,7 +402,7 @@ export default function BusinessHub() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                      Telefon
+                      İş Telefonu
                     </label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -460,8 +411,8 @@ export default function BusinessHub() {
                         required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="0532..."
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                        placeholder="0546..."
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
                       />
                     </div>
                   </div>
@@ -476,8 +427,8 @@ export default function BusinessHub() {
                         required
                         value={registerEmail}
                         onChange={(e) => setRegisterEmail(e.target.value)}
-                        placeholder="b2b@sirket.com"
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                        placeholder="info@fiemkuafor.com"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
                       />
                     </div>
                   </div>
@@ -485,7 +436,7 @@ export default function BusinessHub() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                    Şifre
+                    Güçlü Şifre
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -495,7 +446,7 @@ export default function BusinessHub() {
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
                     />
                   </div>
                 </div>
@@ -503,9 +454,9 @@ export default function BusinessHub() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 tracking-widest uppercase mt-2 cursor-pointer"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-xs py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 tracking-widest uppercase mt-2 cursor-pointer"
                 >
-                  {loading ? "İŞLEM ALINIYOR..." : "DEVAM ET VE PLAN SEÇ"}{" "}
+                  {loading ? "İŞLEM ALINIYOR..." : "DEVAM ET VE LİSANS SEÇ"}{" "}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
@@ -514,10 +465,10 @@ export default function BusinessHub() {
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                  Kurumsal Planınızı Seçin
+                  Lisans Paketinizi Seçin
                 </h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  B2B erişim paketinizi onaylayarak kurulumu bitirin.
+                  Kaydınızı tamamlamak için kurumsal lisans sürenizi onaylayın.
                 </p>
               </div>
 
@@ -525,64 +476,66 @@ export default function BusinessHub() {
                 <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3 shadow-xs">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                     <span className="text-[10px] font-black tracking-wider text-slate-500 uppercase flex items-center gap-1">
-                      <Percent className="w-3 h-3 text-emerald-600" /> MARKA B2B
-                      PAKETLERI
+                      <Percent className="w-3 h-3 text-purple-600" /> SÜRE
+                      SEÇENEKLERİ
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                      {pricing[duration].badge}
-                    </span>
+                    {activePlanDetails?.discount_badge && (
+                      <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+                        {activePlanDetails.discount_badge}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDuration("1year")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${duration === "1year" ? "bg-emerald-50/50 border-emerald-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                    >
-                      <span className="text-[11px] font-black text-slate-700">
-                        1 YILLIK PLAN
-                      </span>
-                      <span className="text-xs font-black text-emerald-600 mt-1">
-                        {pricing["1year"].monthly}/ay
-                      </span>
-                    </button>
+                  <div
+                    className={`grid gap-2 ${plans.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
+                  >
+                    {plans.map((plan) => (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => setSelectedPlanId(plan.id)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${selectedPlanId === plan.id ? "bg-purple-50 border-purple-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
+                      >
+                        {plan.is_popular && (
+                          <div className="absolute top-0 right-0 bg-purple-600 text-white font-black text-[7px] px-1.5 py-0.5 uppercase rounded-bl-lg tracking-tight">
+                            Popüler
+                          </div>
+                        )}
+                        <span className="text-[10px] font-black text-slate-700 uppercase wrap-break-words pr-2">
+                          {plan.name}
+                        </span>
+                        <span className="text-xs font-black text-purple-600 mt-2">
+                          ₺{plan.monthly_price}/ay
+                        </span>
+                      </button>
+                    ))}
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setDuration("2year")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${duration === "2year" ? "bg-emerald-50 border-emerald-500" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                    >
-                      <div className="absolute top-0 right-0 bg-emerald-600 text-white font-black text-[8px] px-1.5 py-0.5 uppercase rounded-bl-lg tracking-tight">
-                        Popüler
+                  {activePlanDetails && (
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
+                      <div className="text-[11px] text-slate-600 font-medium">
+                        Toplam Tutar:{" "}
+                        <strong className="text-purple-600 font-bold">
+                          ₺
+                          {(
+                            activePlanDetails.monthly_price *
+                            activePlanDetails.months
+                          ).toLocaleString("tr-TR")}
+                        </strong>
                       </div>
-                      <span className="text-[11px] font-black text-slate-700">
-                        2 YILLIK PLAN
-                      </span>
-                      <span className="text-xs font-black text-emerald-600 mt-1">
-                        {pricing["2year"].monthly}/ay
-                      </span>
-                    </button>
-                  </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
-                    <div className="text-[11px] text-slate-600 font-medium">
-                      Toplam Ödeme:{" "}
-                      <strong className="text-emerald-600 font-bold">
-                        {pricing[duration].total}
-                      </strong>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer relative overflow-hidden"
+                  disabled={loading || !selectedPlanId}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-4 rounded-xl shadow-md flex items-center justify-center gap-2 tracking-widest uppercase cursor-pointer"
                 >
                   <CreditCard className="w-4 h-4" />{" "}
                   {loading
-                    ? "PLAN AKTİF EDİLİYOR..."
-                    : "ÖDEMEYİ TAMAMLA VE MARKA AKTİF ET"}
+                    ? "LİSANS ONAYLANIYOR..."
+                    : "ÖDEME YAP VE LİSANSI TAMAMLA"}
                 </button>
               </form>
             </div>
