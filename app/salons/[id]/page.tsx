@@ -11,11 +11,8 @@ import SalonSummary from "@/sections/salons/[id]/salon-summary";
 import ServiceSelection from "@/sections/salons/[id]/service-selection";
 import EmployeeSelection from "@/sections/salons/[id]/employee-selection";
 import DateTimeSelection from "@/sections/salons/[id]/date-time-selection";
-import { AuthModal,SuccessModal } from "@/components/SalonModal";
-import { EmployeeData } from "@/type/salon";
-import { SalonData } from "@/type/salon";
-import { ServiceData } from "@/type/salon";
-
+import { AuthModal, SuccessModal } from "@/components/SalonModal";
+import { EmployeeData, SalonData, ServiceData } from "@/type/salon";
 
 const generateAvailableDays = () => {
   const days = [];
@@ -140,7 +137,7 @@ export default function SalonDetail({
           .select(
             "id, service_name, price, duration_minutes, category, image_url, is_active",
           )
-          .eq("salon_id", salonData.salon_id)
+          .eq("salon_id", salonData.id)
           .eq("is_active", true);
 
         if (servicesError)
@@ -215,17 +212,18 @@ export default function SalonDetail({
         if (mappingError) throw mappingError;
 
         if (mappingData && mappingData.length > 0) {
+
           const allowedIds = mappingData.map((item) =>
-            Number(item.employee_id),
+            String(item.employee_id),
           );
           const filtered = allEmployees.filter((emp) =>
-            allowedIds.includes(Number(emp.id)),
+            allowedIds.includes(String(emp.id)),
           );
           setFilteredEmployees(filtered);
 
           if (
             selectedEmployeeId &&
-            !allowedIds.includes(Number(selectedEmployeeId))
+            !allowedIds.includes(String(selectedEmployeeId))
           ) {
             setSelectedEmployeeId(null);
           }
@@ -241,7 +239,7 @@ export default function SalonDetail({
     if (allEmployees.length > 0) {
       filterEmployeesByService();
     }
-  }, [selectedServiceId, allEmployees]);
+  }, [selectedServiceId, allEmployees, selectedEmployeeId]);
 
   useEffect(() => {
     async function generateAvailableSlots() {

@@ -47,7 +47,6 @@ export default function ProfileTab({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Kişisel Bilgiler */}
       <div className="bg-white border border-purple-200/60 rounded-2xl p-6 shadow-xs">
         <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
           <h3 className="text-sm font-black uppercase tracking-tight text-purple-950">Kişisel Bilgiler</h3>
@@ -101,7 +100,6 @@ export default function ProfileTab({
         )}
       </div>
 
-      {/* Teslimat Adresi */}
       <div className="bg-white border border-purple-200/60 rounded-2xl p-6 shadow-xs">
         <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
           <h3 className="text-sm font-black uppercase tracking-tight text-purple-950">Teslimat Adresim</h3>
@@ -166,7 +164,6 @@ export default function ProfileTab({
         )}
       </div>
 
-      {/* Güvenlik Ayarları */}
       <div className="bg-white border border-purple-200/60 rounded-2xl p-6 shadow-xs md:col-span-2">
         <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
           <h3 className="text-sm font-black uppercase tracking-tight text-purple-950">Güvenlik Ayarları</h3>

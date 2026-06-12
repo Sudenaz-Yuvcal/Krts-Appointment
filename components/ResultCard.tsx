@@ -31,7 +31,6 @@ export default function ResultCard({
         <Bot className="w-4 h-4" />
       </div>
       <div className="bg-white border border-purple-200 p-5 rounded-2xl shadow-md border-t-4 border-t-purple-600 space-y-4 w-full animate-in scale-in-95 duration-300">
-        {/* Kupon Alanı */}
         <div className="text-center p-3 bg-purple-50/50 rounded-xl border border-dashed border-purple-200">
           <p className="text-[10px] font-black uppercase text-purple-600 tracking-wider">
             Sohbete Özel %15 Kuponunuz
@@ -50,7 +49,6 @@ export default function ResultCard({
           </button>
         </div>
 
-        {/* Eşleşen Salon Bilgisi */}
         <div className="space-y-1.5 bg-slate-50 p-4 rounded-xl border border-slate-100">
           <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Eşleşen En İyi Salonlar
@@ -66,7 +64,6 @@ export default function ResultCard({
           </p>
         </div>
 
-        {/* Yönlendirme Linki */}
         <Link
           href={`/salons?service=${encodeURIComponent(detectedService)}&location=${encodeURIComponent(detectedLocation)}`}
           className="block w-full bg-[#4A1D24] text-white text-xs font-black py-3.5 rounded-xl hover:bg-purple-700 transition-all shadow-md uppercase tracking-wider text-center"

@@ -133,13 +133,10 @@ export default function BubblePage() {
 
   return (
     <div className="min-h-screen bg-[#FAF5F7] text-[#4A1D24] flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
-      {/* Dekoratif Arka Plan Yuvarlakları */}
       <div className="absolute top-0 left-1/4 w-125 h-125 bg-purple-300/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-125 h-125 bg-pink-300/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Ana Chat Kapsayıcısı */}
       <div className="w-full max-w-4xl bg-white border border-purple-200/60 rounded-3xl shadow-2xl flex flex-col h-[85vh] relative z-10 overflow-hidden">
-        {/* Chat Header Bölümü */}
         <div className="flex items-center justify-between p-5 border-b border-purple-100 bg-white/80 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-purple-600 flex items-center justify-center text-white shadow-md relative shrink-0">
@@ -165,7 +162,6 @@ export default function BubblePage() {
           </button>
         </div>
 
-        {/* Chat İçerik ve Balon Alanı */}
         {isInitializing ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-3 bg-slate-50/50">
             <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
@@ -175,15 +171,12 @@ export default function BubblePage() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/30">
-            {/* Dinamik Mesaj Listesi */}
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
             ))}
 
-            {/* Canlı Destek Durum Kartı */}
             {showSupportCard && <SupportCard />}
 
-            {/* Başarılı Eşleşme ve Sonuç Kartı */}
             {showResultCard && (
               <ResultCard
                 detectedLocation={detectedLocation}
@@ -191,7 +184,6 @@ export default function BubblePage() {
               />
             )}
 
-            {/* Bot Yazıyor Üç Nokta Animasyonu */}
             {isTyping && (
               <div className="flex items-start gap-3.5 max-w-[80%] mr-auto animate-pulse">
                 <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
@@ -212,7 +204,6 @@ export default function BubblePage() {
           </div>
         )}
 
-        {/* Mesaj Gönderme Formu Alt Alanı */}
         <form
           onSubmit={handleSendMessage}
           className="p-4 border-t border-purple-100 bg-white flex items-center gap-2 shrink-0"
@@ -235,7 +226,6 @@ export default function BubblePage() {
         </form>
       </div>
 
-      {/* Görüşmeden Çıkış Onay Modalı */}
       <ExitModal
         isOpen={isExitModalOpen}
         onClose={() => setIsExitModalOpen(false)}

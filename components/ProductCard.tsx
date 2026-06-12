@@ -17,7 +17,6 @@ export default function ProductCard({
 }: ProductCardProps) {
   return (
     <div className="bg-white border border-purple-100/70 rounded-3xl p-6 shadow-sm flex flex-col justify-between relative group w-full max-w-sm transition-all hover:shadow-md">
-      {/* Silme Butonu */}
       <button
         onClick={() => onOpenDeleteModal(product)}
         className="absolute top-4 right-4 z-20 p-2.5 bg-white/90 border border-purple-100 rounded-xl text-purple-300 hover:text-red-500 hover:border-red-100 transition-all cursor-pointer shadow-xs group/bin"
@@ -25,7 +24,6 @@ export default function ProductCard({
         <Trash2 className="w-4 h-4 transition-transform group-hover/bin:scale-110" />
       </button>
 
-      {/* Ürün Linki ve Detayları */}
       <Link href={`/products/${product.product_id}`} className="space-y-4 cursor-pointer block z-10 group">
         <div className="w-full aspect-square bg-white rounded-2xl flex items-center justify-center p-6 overflow-hidden relative border border-purple-50">
           <img
@@ -38,7 +36,6 @@ export default function ProductCard({
             }}
           />
 
-          {/* Stok Durum Rozetleri */}
           {product.stockCount === 0 ? (
             <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1">
               <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md shadow-sm">
@@ -68,7 +65,6 @@ export default function ProductCard({
         </div>
       </Link>
 
-      {/* Alt Alan: Fiyat ve Sepete Ekle */}
       <div className="pt-4 border-t border-purple-50 flex items-center justify-between gap-3 mt-6 z-20">
         <span className="text-base md:text-lg font-black text-[#4A1D24]">
           {product.price.toLocaleString("tr-TR")} TL

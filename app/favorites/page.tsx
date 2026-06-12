@@ -225,7 +225,6 @@ export default function FavoritesPage() {
 
   return (
     <div className="bg-[#FCFCFC] min-h-screen text-black px-6 md:px-16 lg:px-24 py-10 font-sans antialiased relative">
-      {/* Breadcrumb Navigasyon */}
       <div className="flex items-center gap-2 text-sm text-[#2D0F14]/50 mb-8 border-t border-purple-200/40 pt-6">
         <Link href="/" className="hover:text-purple-900 transition-colors">
           Home
@@ -235,7 +234,6 @@ export default function FavoritesPage() {
       </div>
 
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Başlık Alanı */}
         <div className="flex items-baseline justify-between border-b border-purple-200/50 pb-5">
           <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase text-[#2D0F14] flex items-center gap-3">
             <Heart className="w-6 h-6 fill-pink-600 text-pink-600 animate-pulse" />{" "}
@@ -250,7 +248,6 @@ export default function FavoritesPage() {
           </span>
         </div>
 
-        {/* FAVORİ LİSTESİ BÖLÜMÜ (SECTION) */}
         <FavoritesList
           favorites={favorites}
           onOpenDeleteModal={handleOpenDeleteModal}
@@ -258,7 +255,6 @@ export default function FavoritesPage() {
         />
       </div>
 
-      {/* MODALLAR (COMPONENTS) */}
       <DeleteFavoriteModal
         isOpen={isDeleteModalOpen}
         product={selectedProduct}

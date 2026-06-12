@@ -17,7 +17,6 @@ import {
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 
-// package_plans tablosundan gelecek veri tipi
 interface PackagePlan {
   id: string;
   months: number;
@@ -37,7 +36,6 @@ export default function BusinessHub() {
     null,
   );
 
-  // Veritabanından çekeceğimiz planları tutacak state
   const [dbPlans, setDbPlans] = useState<{ [key: string]: PackagePlan }>({});
 
   const [message, setMessage] = useState<{
@@ -56,7 +54,6 @@ export default function BusinessHub() {
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
 
-  // Statik fiyat metinleri (Arayüz görünümü için)
   const pricing = {
     "1year": {
       label: "1 Yıllık Standart Marka Lisansı",
@@ -72,7 +69,6 @@ export default function BusinessHub() {
     },
   };
 
-  // Component açıldığında package_plans tablosundan plan ID'lerini çekiyoruz
   useEffect(() => {
     async function fetchPlans() {
       try {
@@ -203,7 +199,6 @@ export default function BusinessHub() {
     e.preventDefault();
     if (!registeredBrandId) return;
 
-    // 1. Veritabanından çekilen gerçek package_plan_id'yi alıyoruz
     const selectedPlanId = dbPlans[duration]?.id;
 
     if (!selectedPlanId) {
@@ -218,21 +213,19 @@ export default function BusinessHub() {
     setMessage(null);
 
     try {
-      // 2. İŞTE EKSİK OLAN / HATA VEREN DEĞİŞKENLER BURADA TANIMLANIYOR:
-      const today = new Date().toISOString().split("T")[0]; // Bugünün tarihi (YYYY-MM-DD)
+      const today = new Date().toISOString().split("T")[0]; 
       const nextYear = new Date();
       nextYear.setFullYear(
         nextYear.getFullYear() + (duration === "2year" ? 2 : 1),
       );
-      const endDate = nextYear.toISOString().split("T")[0]; // Bitiş tarihi (YYYY-MM-DD)
+      const endDate = nextYear.toISOString().split("T")[0]; 
 
-      // 3. Şimdi Supabase'e güvenle gönderiyoruz
       const { error: updateError } = await supabase
         .from("brands")
         .update({
           package_plan_id: selectedPlanId,
-          subscription_start_date: today, // Artık hata vermez, yukarıda tanımlı!
-          subscription_end_date: endDate, // Artık hata vermez, yukarıda tanımlı!
+          subscription_start_date: today, 
+          subscription_end_date: endDate,
         })
         .eq("id", registeredBrandId);
 
@@ -256,9 +249,7 @@ export default function BusinessHub() {
   };
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans flex flex-col lg:flex-row overflow-hidden">
-      {/* Sol Panel */}
       <div className="w-full lg:w-1/2 p-8 md:p-16 bg-white flex flex-col justify-between border-r border-slate-200 relative overflow-hidden">
-        {/* Yeşil Blur Arka Plan Tasarımı */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl pointer-events-none" />
 
         <div className="space-y-12 max-w-xl relative z-10 my-auto">
@@ -290,7 +281,6 @@ export default function BusinessHub() {
         </div>
       </div>
 
-      {/* Sağ Panel */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 md:py-20 bg-slate-50">
         <div className="w-full max-w-md space-y-8">
           {registerStep === "form" && (
@@ -327,7 +317,6 @@ export default function BusinessHub() {
           )}
 
           {view === "login" ? (
-            /* --- MARKA GİRİŞ EKRANI --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -382,9 +371,7 @@ export default function BusinessHub() {
                 </button>
               </form>
             </div>
-          ) : registerStep === "form" ? (
-            /* --- MARKA KAYIT ADIM 1 --- */
-            <div className="space-y-6">
+          ) : registerStep === "form" ? (            <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
                   Markanızı Kaydedin
@@ -527,7 +514,6 @@ export default function BusinessHub() {
               </form>
             </div>
           ) : (
-            /* --- MARKA KAYIT ADIM 2: LİSANS VE PLAN --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -591,7 +577,6 @@ export default function BusinessHub() {
                   </div>
                 </div>
 
-                {/* Ödeme Butonu */}
                 <button
                   type="submit"
                   disabled={loading}

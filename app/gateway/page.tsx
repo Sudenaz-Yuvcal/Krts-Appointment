@@ -14,11 +14,9 @@ export default function B2BGateway() {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans flex flex-col items-center justify-center p-4 md:p-8 relative overflow-hidden">
-      {/* Arka Plan Estetik Dokunuşları */}
       <div className="absolute top-0 left-1/4 w-120 h-120 bg-purple-200/40 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-120 h-120 bg-emerald-100/50 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Üst Kısım - Geri Dönüş ve Logo */}
       <div className="w-full max-w-3xl flex justify-between items-center mb-12 relative z-10">
         <Link
           href="/"
@@ -73,7 +71,6 @@ export default function B2BGateway() {
             </div>
           </button>
 
-          {/* GÜZELLİK SALONU SEÇENEĞİ */}
           <button
             onClick={() => router.push("/business-login")}
             className="flex flex-col items-center justify-between p-8 bg-slate-50 hover:bg-purple-50/60 border border-slate-200/80 hover:border-purple-300 rounded-4xl transition-all cursor-pointer group text-center shadow-xs hover:shadow-md hover:-translate-y-1"
@@ -97,7 +94,6 @@ export default function B2BGateway() {
         </div>
       </div>
 
-      {/* Alt Bilgi */}
       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-8 relative z-10">
         © 2026 KRTS Güzellik ve Yazılım Teknolojileri A.Ş.
       </p>

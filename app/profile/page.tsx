@@ -48,7 +48,6 @@ export default function ProfilePage() {
   return (
     <div className="min-h-[calc(100vh-80px)] bg-[#FAF6F8] py-10 px-4 md:px-16 text-[#2D0F14]">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sol Menü (Sidebar Component) */}
         <Sidebar
           fullName={fullName}
           userEmail={userEmail}
@@ -59,9 +58,7 @@ export default function ProfilePage() {
           reviews={reviews}
         />
 
-        {/* Sağ İçerik Alanı */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Bildirim Mesajları */}
           {message && (
             <div
               className={`flex items-center gap-3 border text-xs font-bold p-4 rounded-xl ${
@@ -79,7 +76,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Aktif Sekme Yönetimi */}
           {activeTab === "profile" && (
             <ProfileTab
               fullName={fullName}

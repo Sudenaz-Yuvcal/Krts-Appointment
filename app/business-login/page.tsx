@@ -212,9 +212,7 @@ export default function BusinessHub() {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans flex flex-col lg:flex-row overflow-hidden">
-      {/* Sol Panel */}
       <div className="w-full lg:w-1/2 p-8 md:p-16 bg-white flex flex-col justify-between border-r border-slate-200 relative overflow-hidden">
-        {/* Geri gelen Mor Blur efekti */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-purple-200/40 rounded-full blur-3xl pointer-events-none" />
 
         <div className="space-y-12 max-w-xl relative z-10 my-auto">
@@ -264,7 +262,6 @@ export default function BusinessHub() {
         </div>
       </div>
 
-      {/* Sağ Panel (Formlar) */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 md:py-20 bg-slate-50">
         <div className="w-full max-w-md space-y-8">
           {registerStep === "form" && (
@@ -301,7 +298,6 @@ export default function BusinessHub() {
           )}
 
           {view === "login" ? (
-            /* --- GİRİŞ EKRANI --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -357,7 +353,6 @@ export default function BusinessHub() {
               </form>
             </div>
           ) : registerStep === "form" ? (
-            /* --- KAYIT ADIM 1: FORM BİLGİLERİ --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -467,7 +462,6 @@ export default function BusinessHub() {
               </form>
             </div>
           ) : (
-            /* --- KAYIT ADIM 2: VERİTABANINDAN 3 PAKET LİSTELEME --- */
             <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -492,7 +486,6 @@ export default function BusinessHub() {
                     )}
                   </div>
 
-                  {/* 3 paket gelirse 3'lü kolon düzeni */}
                   <div
                     className={`grid gap-2 ${plans.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
                   >
@@ -518,7 +511,6 @@ export default function BusinessHub() {
                     ))}
                   </div>
 
-                  {/* Dinamik Hesaplanan Tutar */}
                   {activePlanDetails && (
                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center">
                       <div className="text-[11px] text-slate-600 font-medium">
@@ -535,7 +527,6 @@ export default function BusinessHub() {
                   )}
                 </div>
 
-                {/* Buton hala yeşil kalıyor, çünkü ödeme/onay butonu */}
                 <button
                   type="submit"
                   disabled={loading || !selectedPlanId}
