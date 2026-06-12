@@ -171,15 +171,25 @@ export default function BusinessHub() {
       if (authError) throw authError;
       if (!authData.user) throw new Error("Kullanıcı oluşturulamadı.");
 
-      const { error: brandError } = await supabase.from("brands").insert({
-        id: authData.user.id,
-        brand_name: brandName,
-        sector: sector,
-        phone: phone,
-        email: registerEmail,
-        website: website,
-        logo_url: null,
-      });
+      const { error: profileError } = await supabase.from("profiles").insert([
+        {
+          id: authData.user.id,
+          role: "brand",
+          full_name: fullName,
+        },
+      ]);
+
+      if (profileError) throw profileError;
+
+      const { error: brandError } = await supabase.from("brands").insert([
+        {
+          id: authData.user.id,
+          brand_name: brandName,
+          authorized_name: fullName,
+          phone: phone,
+          email: registerEmail,
+        },
+      ]);
 
       if (brandError) throw brandError;
 
@@ -213,23 +223,14 @@ export default function BusinessHub() {
     setMessage(null);
 
     try {
-      const today = new Date().toISOString().split("T")[0]; 
-      const nextYear = new Date();
-      nextYear.setFullYear(
-        nextYear.getFullYear() + (duration === "2year" ? 2 : 1),
-      );
-      const endDate = nextYear.toISOString().split("T")[0]; 
-
-      const { error: updateError } = await supabase
+      const { error: planError } = await supabase
         .from("brands")
         .update({
-          package_plan_id: selectedPlanId,
-          subscription_start_date: today, 
-          subscription_end_date: endDate,
+          subscription_plan: duration,
         })
         .eq("id", registeredBrandId);
 
-      if (updateError) throw updateError;
+      if (planError) throw planError;
 
       setMessage({
         type: "success",
@@ -371,7 +372,8 @@ export default function BusinessHub() {
                 </button>
               </form>
             </div>
-          ) : registerStep === "form" ? (            <div className="space-y-6">
+          ) : registerStep === "form" ? (
+            <div className="space-y-6">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
                   Markanızı Kaydedin

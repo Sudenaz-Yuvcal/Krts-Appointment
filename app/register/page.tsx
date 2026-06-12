@@ -66,14 +66,17 @@ export default function UserRegister() {
         setStep("verify");
       }
     } catch (err: any) {
-      console.error("Kayıt hatası:", err);
-      if (err.message?.includes("already registered")) {
-        setErrorMessage("Bu e-posta adresiyle daha önce kayıt olunmuş.");
-      } else if (err.message?.includes("Password should be")) {
+      console.error("Kayıt hatası detayı:", err);
+      const errMsg = err.message || "";
+
+      if (errMsg.includes("already registered") || err.status === 400) {
+        setErrorMessage("Bu e-posta adresiyle daha önce bir hesap başlatılmış. Eğer kod bekliyorsanız formu doldurmaya devam edebilirsiniz veya zaten üyeyseniz giriş yapın.");
+        setStep("verify");
+      } else if (errMsg.includes("Password should be")) {
         setErrorMessage("Şifreniz en az 6 karakterden oluşmalıdır.");
       } else {
         setErrorMessage(
-          err.message || "Kayıt sırasında veritabanı hatası oluştu.",
+          errMsg || "Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin."
         );
       }
     } finally {
@@ -110,7 +113,7 @@ export default function UserRegister() {
     } catch (err: any) {
       console.error("Doğrulama hatası:", err);
       setErrorMessage(
-        err.message || "Girdiğiniz kod hatalı veya süresi dolmuş.",
+        err.message || "Girdiğiniz kod hatalı veya süresi dolmuş."
       );
     } finally {
       setLoading(false);
